@@ -1,0 +1,10 @@
+
+{
+		"datadir"	: "/shared/home/fcharriat/magmax/VCF/Zhong_data/",
+		"OutDir"	: "/shared/home/fcharriat/magmax/VCF/Zhong_annotation/",
+		"RnaSeqDir"	: "/shared/home/fcharriat/magmax/Florian_MAX/RNAseq/",
+		"id_souche"	: "magnaporthe_oryzae",
+		"protRef"	: "/shared/home/fcharriat/magmax/Florian_MAX/AssemblyAndAnnotation_pipeline/OG_filter.fasta", 
+		"ET_data_base"	: "/shared/home/fcharriat/magmax/Florian_MAX/AssemblyAndAnnotation_pipeline/ET_db.fasta"
+}
+	

@@ -1,0 +1,26 @@
+############################################# Part I : Path of Input and Output data ############################################
+DATA:
+    
+    # If you have already a assembly and the previous step isn't use, you can complete this part (if the assembly part
+    # is complete please pass this part (keep every path empty '')
+    FASTA: '/shared/home/fcharriat/magmax/Test_pipeline_Annotation/data_test/fasta_assembly/'
+    SUFFIX_FASTA : '.fasta' # Etension of your fasta files contains in FASTQ directory (for exemple : '.fasta','.fa', etc .... )
+
+    ##############################################################################################################################
+
+    # Input file for the annotation step
+    ET_DB: '/shared/home/fcharriat/magmax/Test_pipeline_Annotation/data_test/ET_db.fasta' # Path of the repeat element data base for repeatMasker
+    REPEAT_MASKING_STEP : True
+    RNAseq_DIR : '/shared/home/fcharriat/magmax/Test_pipeline_Annotation/data_test/RNAseq_data/' # Path of the directory which contain all RNAseq data, if you kepts this path empty this pipeline run only augustus
+    SUFFIX_RNAseq : '.fastq.gz' # Etension of your fastq files contains in FASTQ directory (for exemple = '.fastq.gz','fq.gz','fq' , etc. )
+    ID_SPECIES: 'magnaporthe_oryzae' # ID of species for augustus trainings, please refers to augustus main page for this option
+    PROTEIN_REF: '/shared/home/fcharriat/magmax/Test_pipeline_Annotation/data_test/OG_filter.fasta' # Path of the protein fasta file, if you don't have this file you can kept empty this option ('')
+    GM_KEY : '/shared/home/fcharriat/magmax/Test_pipeline_Annotation/data_test/gm_key_64' # Path of the licence for Genemarks-ES (please give it at http://exon.gatech.edu/GeneMark/license_download.cgi)
+    BUSCO_LINEAGE : '/shared/home/fcharriat/magmax/Test_pipeline_Annotation/data_test/sordariomycetes_odb10' # ID of the database to use for BUSCO
+
+    ##############################################################################################################################
+
+    # Output directory for all results of this pipeline
+    OUTPUT: '/shared/home/fcharriat/magmax/Florian_MAX/result'
+
+

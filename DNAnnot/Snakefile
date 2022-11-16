@@ -1,0 +1,761 @@
+import glob
+import re
+import sys
+from os.path import join
+import DNAnnot
+from DNAnnot.global_variable import *
+from .parser.module_config import *
+from pathlib import Path
+
+
+###############################################################################
+###############################################################################
+# Adapt here so you can get all read pairs and ref:
+#--------------------------------------------------
+
+
+# Fasta directory
+data_directory = config["DATA"]["FASTA"]
+suffix_fasta = config["DATA"]["SUFFIX_FASTA"]# for the golb_wildcards function
+data_directory = verif_directory(data_directory,suffix_fasta)
+
+# RNAseq directory
+rna_seq_directory = config["DATA"]["RNAseq_DIR"]
+suffix_RNAseq = config["DATA"]["SUFFIX_RNAseq"]
+
+
+# Augustus Parameters
+config_file_augutus = f'{DNANNOT_PATH}/Additional_files/config_augustus/'
+#config_file_augutus = f'/shared/home/fcharriat/magmax/Test_pipeline_Annotation/data_test/config_augustus/' # For test
+
+id_souche = config["DATA"]["ID_SPECIES"]
+verif_species(id_souche,config_file_augutus,rna_seq_directory)
+
+#Licence of genemark-ES
+gm_keys = config["DATA"]["GM_KEY"]
+# verif_gm_key(gm_keys)
+os.system(f'cp {gm_keys} ~/.gm_key')
+
+# Path to protein annotation file
+protein_reference = config["DATA"]["PROTEIN_REF"]
+verif_fasta_file(protein_reference)
+
+# Repeat element data base
+ET_option =  config["DATA"]["REPEAT_MASKING_STEP"]
+ET_data_base = config["DATA"]["ET_DB"]
+# if ET_option == 'True' or ET_option == True :
+    # verif_fasta_file(ET_data_base,'repeat data base')
+species_ID =  config["DATA"]["SPECIES_ID"]
+#BUSO parameters
+BUSCO_lineage = config["DATA"]["BUSCO_LINEAGE"]
+# verif_busco_id(BUSCO_lineage) # For now, the BUSCO_lineage is a directory not a ids
+
+# Out directory
+output_directory = config["DATA"]["OUTPUT"]
+output_directory = make_output_directory(output_directory)
+
+#Braker tools
+braker_container = f'{DNANNOT_PATH}/tools/singularity_containers_braker.sif'
+
+if protein_reference == '' and rna_seq_directory == '':
+      raise ValueError(form(
+            f"ERROR : You don't provide a protein file and rnaseq file please provide a least one of them", 'red', 'bold'))
+################################################################################
+################################################################################
+# Function
+################################################################################
+def get_threads(rule, default):
+    """
+    Give threads or 'cpus-per-task from cluster_config rule : threads to SGE and cpus-per-task to SLURM
+    """
+
+    if rule in cluster_config and 'threads' in cluster_config[rule]:
+        return int(cluster_config[rule]['threads'])
+    elif '__default__' in cluster_config and 'threads' in cluster_config['__default__']:
+        return int(cluster_config['__default__']['threads'])
+    return default
+
+
+################################################################################
+# TODO suffix RNAseq, soit paramètre soit mv/ln
+# TODO Create log_directory
+# TODO {suffix} RNAseq + Mettre en single et/ou paired + report quality of RNAseq
+# TODO Verif repeatMasker option ? 
+
+#################################################################################
+### Create Logs directory
+log_directory = output_directory + 'LOGS/'
+liste_log = [f'{log_directory}Assembly/ABySS',f'{log_directory}Assembly/Report',f'{log_directory}Assembly/2_assembly_selected',
+             f'{log_directory}Assembly/3_masked',f'{log_directory}Assembly/4_assembly_final',f'{log_directory}Annotation/1_hisat2/0_reference_fasta',
+             f'{log_directory}Annotation/1_hisat2/1_alignement/alignement',f'{log_directory}Annotation/1_hisat2/1_alignement/sort',
+             f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/aln', f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/sort',
+             f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/hints',f'{log_directory}Annotation/2_hints/RNAseq_hints',
+             f'{log_directory}Annotation/2_hints/ProtHints',f'{log_directory}Annotation/2_hints/MergeHints', f'{log_directory}Annotation/3_Braker',
+             f'{log_directory}Annotation/4_Augustus',f'{log_directory}Annotation/5_merged_gff',f'{log_directory}Annotation/6_final_data',
+             f'{log_directory}Annotation/Report',f'{log_directory}BUSCO']
+
+for directory_log in liste_log :
+    if  os.path.isdir(directory_log) == False :
+        os.makedirs(directory_log)
+
+######### Main code of Workflow #################################################
+SAMPLES, = glob_wildcards(f'{data_directory}{{smp}}{suffix_fasta}', followlinks=True)
+RNA, = glob_wildcards(f'{rna_seq_directory}{{rna}}{suffix_RNAseq}', followlinks=True) # Warning, they haven't suffix variable for retrieve all RNAseq but they can retrieve  a file which aren't a RNAseq file
+kmere = [20,30,40,50,60,70,80,90]
+
+rule final:
+    input:
+        final_data = expand(f'{output_directory}Annotation/6_final_data/{{smp}}/', smp = SAMPLES),
+        report_annotation = f'{output_directory}Report/Annotation/report.html'
+
+rule repeatMasker:
+    """
+    This rule use repeatMasker for mask repeat element
+    """
+    threads :  get_threads('repeatMasker', 4)
+    input :
+        fasta = f'{data_directory}{{smp}}{suffix_fasta}'
+    output :
+        directory = directory(f'{output_directory}RepeatMasker/1_final_data/{{smp}}/')
+    params :
+        Et_data_base = ET_data_base
+    log :
+        output = f'{log_directory}Assembly/3_masked/{{smp}}.o',
+        error = f'{log_directory}Assembly/3_masked/{{smp}}.e'
+    singularity:
+        "shub://FlorianCHA/singularity_containers:repeatmasker"
+    message :
+        """
+        Function : 
+            - Use repeatMasker on {wildcards.smp}  for mask repeat element
+        Input : 
+            - fasta : {input.fasta}
+        Ouput : 
+            - {output.directory}
+        """+ "*" *100
+    shell :
+        """
+        RepeatMasker -gff -pa {threads} -s -no_is {input.fasta} -lib {params.Et_data_base} -e ncbi -dir {output.directory} 1> {log.output} 2> {log.error}
+        """
+
+rule renameFile:
+    """
+    This rule renames fasta output of repeatMasker rule
+    """
+    threads : get_threads('renameFile', 1)
+    input :
+        directory = rules.repeatMasker.output.directory
+    output :
+        fasta = f'{output_directory}RepeatMasker/1_final_data/{{smp}}.fasta'
+    log :
+        output = f'{log_directory}Assembly/4_assembly_final/{{smp}}.o',
+        error = f'{log_directory}Assembly/4_assembly_final/{{smp}}.e'
+    singularity :
+        "shub://FlorianCHA/singularity_containers:biopython"
+    message :
+        """
+        Function : 
+            - Renames fasta output of repeatMasker rule for {wildcards.smp}
+        Input : 
+            - fasta : {input.directory}
+        Ouput : 
+            - {output.fasta}
+        """+ "*" *100
+    shell :
+        """
+        script/formatFastaName.py -f {input.directory}{wildcards.smp}.fasta.masked -k g -l 500 -o {output.fasta} 1> {log.output} 2> {log.error}
+        """
+
+def input_annotation(wilcards):
+    """
+    Launch or not repeatMasker step and ABySS step
+    """
+    if  ET_option == 'True' or ET_option == True :
+        return(rules.repeatMasker.output.directory)
+    else :
+        return(f'{data_directory}{{smp}}{suffix_fasta}')
+
+rule hisat2_index :
+    """
+    This rules is used to build index of each reference for launch hisat2 alignement.
+    """
+    threads : get_threads('hisat2_index', 1)
+    input :
+        reference_fasta = input_annotation
+    output :
+        new_reference_fasta = f"{output_directory}Annotation/1_hisat2/0_reference_fasta/{{smp}}{suffix_fasta}"
+    params :
+        reference_index_output =  f"{output_directory}Annotation/1_hisat2/0_reference_fasta/{{smp}}", # This line is used in command, the tools want a prefix and not the entire file name
+        ET_step = f'{"{smp}.fasta.masked" if ET_option in ["True",True]else ""}' # Add extension file if you begin with repeatMasker step.
+    log :
+        output = f'{log_directory}Annotation/1_hisat2/0_reference_fasta/{{smp}}.o',
+        error = f'{log_directory}Annotation/1_hisat2/0_reference_fasta/{{smp}}.e'
+    singularity:
+        "shub://FlorianCHA/singularity_containers:hisat2"
+    envmodules:
+        "hisat2/2.1.0"
+    message :
+        """
+        Function : out_directory
+            - Build index for {wildcards.smp} reference
+        Input : 
+            - Reference : {input.reference_fasta}
+        Ouput : 
+            - {output.new_reference_fasta}
+            - {params.reference_index_output}
+        """+ "*" *100
+    shell :
+        """
+        cp {input.reference_fasta}{params.ET_step} {output.new_reference_fasta} 1> {log.output} 2> {log.error}
+        hisat2-build {output.new_reference_fasta} {params.reference_index_output} 1>> {log.output} 2>> {log.error}
+        """
+
+rule hisat2_alignement :
+    """
+    This rule launch hisat2 for each fasta reference with each RNAseq single-end samples
+    """
+    threads : get_threads('hisat2_alignement', 1)
+    input :
+        reference = rules.hisat2_index.output.new_reference_fasta,
+        rna_seq = f"{rna_seq_directory}{{rna}}{suffix_RNAseq}"
+    output :
+        bam =   temp(f"{output_directory}Annotation/1_hisat2/1_alignement/{{smp}}/{{rna}}/{{smp}}_{{rna}}.bam"),
+        stdout =  f"{output_directory}Annotation/1_hisat2/1_alignement/{{smp}}/{{rna}}/Summary_alignement.txt"
+    params :
+        basename =  f"{output_directory}Annotation/1_hisat2/0_reference_fasta/{{smp}}"
+    log :
+        output = f'{log_directory}Annotation/1_hisat2/1_alignement/alignement/{{smp}}_{{rna}}.o',
+        error = f'{log_directory}Annotation/1_hisat2/1_alignement/alignement/{{smp}}_{{rna}}.e'
+    singularity:
+        "shub://FlorianCHA/singularity_containers:hisat2"
+    envmodules:
+        "hisat2/2.1.0 samtools/1.10"
+    message :
+        """
+        Function : 
+            - Align {wildcards.rna} on {wildcards.smp} reference
+        Input : 
+            - Reference : {input.reference}
+            - RNAseq : {input.rna_seq}
+        Ouput : 
+            - sam file : {output.bam}
+            - summary alignement : {output.stdout}
+        """ + "*" *100
+    shell :
+        """
+        hisat2 --no-unal -x {params.basename} --summary-file {output.stdout} -U {input.rna_seq} |  samtools view -@ {threads} -F 4 -bh | samtools sort -@ {threads} -o {output.bam}
+        """
+
+rule samtools :
+    """
+    This rule used samtools view for change sam file to bam file and samtools sort for sort the bam file
+    """
+    threads : get_threads('samtools', 1)
+    input :
+        sam_file = rules.hisat2_alignement.output.bam
+    output :
+        sort = temp(f"{output_directory}Annotation/1_hisat2/1_alignement/{{smp}}/{{rna}}/{{smp}}_{{rna}}_sort.bam")
+    log :
+        output = f'{log_directory}Annotation/1_hisat2/1_alignement/sort/{{smp}}_{{rna}}.o',
+        error = f'{log_directory}Annotation/1_hisat2/1_alignement/sort/{{smp}}_{{rna}}.e'
+    singularity:
+        "shub://FlorianCHA/singularity_containers:hisat2"
+    envmodules:
+        "samtools/1.10"
+    message :
+        """
+        Function : 
+            - Create and sort  {wildcards.smp}_{wildcards.rna}_sort.bam
+        Input : 
+            - sam file : {input.sam_file}
+        Ouput : 
+            - bam file sorted : {output.sort}
+        """ + "*" *100
+    shell :
+        """
+        samtools view -@ {threads} -F 4 -b {input.sam_file} | samtools sort -@ {threads} -o {output.sort} 1> {log.output} 2> {log.error}
+        """
+
+rule merge_bam :
+    """
+    This rules merge all bam by reference file 
+    """
+    threads : get_threads('merge_bam', 1)
+    input :
+        bam = expand(rules.hisat2_alignement.output.bam,rna=RNA,smp = "{smp}")
+    output :
+        all_bam =  temp(f"{output_directory}Annotation/1_hisat2/2_merge_bam_file/{{smp}}/{{smp}}.bam")
+    params :
+        directory_bam = f"{output_directory}Annotation/1_hisat2/1_alignement/{{smp}}/" # Snakemake won't input file and directory file if the input file is in the directory, so the directory is give in params
+    log :
+        output = f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/aln/{{smp}}.o',
+        error = f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/aln/{{smp}}.e'
+    singularity:
+        "shub://FlorianCHA/singularity_containers:hisat2"
+    envmodules:
+        "samtools/1.10"
+    message :
+        """
+        Function : 
+            - Merge all bam for {wildcards.smp} reference
+        Input : 
+            - bam file : {input.bam}
+        Ouput : 
+            - bam merge : {output.all_bam}
+        """ + "*" *100
+    shell :
+        """
+        cd {params.directory_bam} 1> {log.output} 2> {log.error}
+        ls */*.bam | tee bamList 1>> {log.output} 2>> {log.error}
+        samtools merge -f -b bamList -c - | samtools sort -o  {output.all_bam}  1>> {log.output} 2>> {log.error}
+        """
+
+rule sort_bam :
+    """
+    This rules used samtools sort for sort the merged bam file
+    """
+    threads : get_threads('sort_bam', 1)
+    input :
+        bam_file = rules.merge_bam.output.all_bam
+    output :
+        bam_sort = f"{output_directory}Annotation/1_hisat2/2_merge_bam_file/{{smp}}/{{smp}}_sort.bam"
+    log :
+        output = f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/sort/{{smp}}.o',
+        error = f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/sort/{{smp}}.e'
+    singularity:
+        "shub://FlorianCHA/singularity_containers:hisat2"
+    envmodules:
+        "samtools/1.10"
+    message :
+        """
+        Function : 
+            - Sorted the merged bam for {wildcards.smp} reference
+        Input : 
+            - bam file : {input.bam_file}
+        Ouput : 
+            - bam merge : {output.bam_sort}
+        """ + "*" *100
+    shell:
+        """
+        samtools sort -o  {output.bam_sort} {input.bam_file} 1> {log.output} 2> {log.error}
+        """
+
+rule bam2hints :
+    """
+    This rules convert merged bam file of {wildcards.smp} into a hint file for AUGUSTUS and BRAKER
+    """
+    threads : get_threads('bam2hints', 1)
+    input :
+        bam_file_sorted = rules.merge_bam.output.all_bam
+    output :
+        hints =  temp(f"{output_directory}Annotation/1_hisat2/2_merge_bam_file/{{smp}}/hints_{{smp}}.raw.bam")
+    log :
+        output = f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/hints/{{smp}}.o',
+        error = f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/hints/{{smp}}.e'
+    singularity:
+        "shub://FlorianCHA/singularity_containers:braker"
+    envmodules:
+        "braker"
+    message :
+        """
+        Function : 
+            - Convert merged bam file of {wildcards.smp} into a hint file for AUGUSTUS and BRAKER
+        Input : 
+            - bam file : {input.bam_file_sorted}
+        Ouput : 
+            - hints file : {output.hints}
+        """ + "*" *100
+    shell:
+        """
+        bam2hints --minintronlen=10 --maxintronlen=1000 --maxgaplen=9 --source=M --exonhints --in={input.bam_file_sorted} --out={output.hints} 1> {log.output} 2> {log.error}
+        """
+
+rule bam2hints_filter :
+    """
+    This rules filter hint file outcome of bam file
+    """
+    threads : get_threads('bam2hints_filter', 1)
+    input :
+        hints = rules.bam2hints.output.hints
+    output :
+        hints_filtred = f'{output_directory}Annotation/2_hints/RNAseq_hints/hints_{{smp}}.filtered.gff'
+    params :
+        path = f"{output_directory}Annotation/1_hisat2/2_merge_bam_file/{{smp}}/",
+        script=f'{dnannot.DNANNOT_SCRIPTS}/filterHintsSnake.r'
+    log :
+        output = f'{log_directory}Annotation/2_hints/RNAseq_hints/{{smp}}.o',
+        error = f'{log_directory}Annotation/2_hints/RNAseq_hints/{{smp}}.e'
+    message :
+        """
+        Function : 
+            - Filter hint file outcome of bam file for {wildcards.smp}
+        Input : 
+            - hints file : {input.hints}
+        Ouput : 
+            - hints filtred file : {output.hints_filtred}
+        """ + "*" *100
+    shell:
+        """
+        {params.script} -s {wildcards.smp} -p {params.path}/ -o {output.hints_filtred} 1> {log.output} 2> {log.error}
+        """
+
+rule exonerate :
+    """
+    This rules execut exonerate alignement and convert alignement into hints fil
+    """
+    threads : get_threads('exonerate', 2)
+    input :
+        protein_reference = protein_reference,
+        file = rules.hisat2_index.output.new_reference_fasta
+    output:
+        exonerate = f'{output_directory}Annotation/2_hints/ProtHints/exonerate_{{smp}}.gff3',
+        hints = f'{output_directory}Annotation/2_hints/ProtHints/exonerate_{{smp}}.hints.gff3'
+    log :
+        output = f'{log_directory}Annotation/2_hints/ProtHints/{{smp}}.o',
+        error = f'{log_directory}Annotation/2_hints/ProtHints/{{smp}}.e'
+    singularity:
+        "shub://FlorianCHA/singularity_containers:braker"
+    envmodules:
+        "braker"
+    message :
+        """
+        Function : 
+            - Executing exonerate alignement and convert alignement into hints file for {wildcards.smp}
+        Input : 
+            - protein reference fasta file : {input.protein_reference}
+        Ouput : 
+            - hints : {output.hints}
+        """ + "*" *100
+    shell:
+        """
+        exonerate --model protein2genome --percent 95 --showtargetgff T {input.protein_reference} {input.file} > {output.exonerate}
+        exonerate2hints.pl --source=M --minintronlen=10 --maxintronlen=1000 --in={output.exonerate} --out={output.hints} 1> {log.output} 2> {log.error}
+        """
+
+def input_hints(wilcards):
+    """
+    Launch or not RNAseq and Prot analysis depending on the presence of data
+    """
+    if rna_seq_directory != "" and protein_reference != "" :
+        return({'rnaseq' : rules.bam2hints_filter.output.hints_filtred ,
+                'prot' : rules.exonerate.output.hints})
+    elif rna_seq_directory == "" :
+        return({'prot' : rules.exonerate.output.hints})
+    else :
+        return({'rnaseq' : rules.bam2hints_filter.output.hints_filtred})
+
+def params_merge(wilcards):
+    """
+    Give the good variable for cat command
+    """
+    if rna_seq_directory != "" and protein_reference != "" :
+        return({'rnaseq' : rules.bam2hints_filter.output.hints_filtred ,
+                'prot' : rules.exonerate.output.hints})
+    elif rna_seq_directory == "" :
+        return({'prot' : rules.exonerate.output.hints,
+                'rnaseq' : ''})
+    else :
+        return({'rnaseq' : rules.bam2hints_filter.output.hints_filtred ,
+                'prot' : ''})
+
+
+rule merge_hint:
+    """
+    This rules merge hints outcome of RNAseq with hints outcome of proteine alignement
+    """
+    threads : get_threads('merge_hint', 1)
+    input:
+        unpack(input_hints)
+    output:
+        merge = f'{output_directory}Annotation/2_hints/MergeHints/{"Protein" if rna_seq_directory == "" else "RNAseq" if protein_reference == "" else "RNAseq_protein"}.hints_{{smp}}.gff',
+        merge_intron = f'{output_directory}Annotation/2_hints/MergeHints/{"Protein" if rna_seq_directory == "" else "RNAseq" if protein_reference == "" else "RNAseq_protein"}.hints.intron_{{smp}}.gff'
+    log :
+        output = f'{log_directory}Annotation/2_hints/MergeHints/{{smp}}.o',
+        error = f'{log_directory}Annotation/2_hints/MergeHints/{{smp}}.e'
+    message :
+        """
+        Function : 
+            - Merge hints outcome of RNAseq with hints outcome of proteine alignement for {wildcards.smp}.
+        Input : 
+            - RNAseq hints : {input.rnaseq}
+            - protein hints : {input.prot}
+        Ouput : 
+            - all hints : {output.merge}
+            - hints of intron :  {output.merge_intron}
+        """ + "*" *100
+    shell:
+        """
+        cat {input}  1> {output.merge} 2> {log.error}
+        awk '/intron/' {output.merge} 1> {output.merge_intron} 2> {log.error}
+        """
+
+def braker_input(wilcards):
+    """
+    Launch or not RNAseq and Prot analysis depending on the presence of data
+    """
+    if rna_seq_directory != "" and protein_reference != "" :
+        return({'RNA' : rules.merge_bam.output.all_bam ,
+                'prot' : rules.exonerate.output.exonerate})
+    else :
+        return({'rnaseq' : rules.bam2hints_filter.output.hints_filtred})
+
+rule BRAKER :
+    """
+    This rules execute BRAKER for annotation
+    """
+    threads : get_threads('BRAKER', 2)
+    input :
+        unpack(braker_input),
+        genome = rules.hisat2_index.output.new_reference_fasta,
+        gm_keys = gm_keys
+    output :
+        directory = directory(f'{output_directory}Annotation/3_Braker/{{smp}}/')
+    log :
+        output = f'{log_directory}Annotation/3_Braker/{{smp}}.o',
+        error = f'{log_directory}Annotation/3_Braker/{{smp}}.e'
+    params :
+        species = f"--species={id_souche}" if id_souche != "" else f"--species={{smp}}",
+        augustus = config_file_augutus,
+        protein = f'{f"--prot_aln={output_directory}Annotation/2_hints/ProtHints/exonerate_{{smp}}.gff3" if protein_reference != "" else "" }',
+        braker = braker_container
+    message :
+        """
+        Function : 
+            - Execute BRAKER for {wildcards.smp}
+        Input : 
+            - Genome file : : {input.genome}
+            - Prot file : {input.prot}
+            - RNA file : {input.RNA}
+        Ouput : 
+            - Directory output : {output.directory}
+        """ + "*" *100
+    shell :
+        """
+        singularity exec {params.braker} braker.pl --cores 2 --fungus --gff3 {params.species} --useexisting --genome={input.genome} {params.protein} --prg=exonerate --bam={input.RNA} --overwrite --alternatives-from-evidence=false --workingdir={output.directory} --AUGUSTUS_CONFIG_PATH={params.augustus} 1> {log.output} 2> {log.error}
+        """
+
+rule augustus :
+    """
+    This rules execute augustus for annotation
+    """
+    threads : get_threads('augustus', 2)
+    input :
+        hints = rules.merge_hint.output.merge ,
+        genome = rules.hisat2_index.output.new_reference_fasta,
+    output :
+        gff_file = f'{output_directory}Annotation/4_Augustus/{{smp}}.gff3'
+    log :
+        output = f'{log_directory}Annotation/4_Augustus/{{smp}}.o',
+        error = f'{log_directory}Annotation/4_Augustus/{{smp}}.e'
+    params :
+        species = id_souche,
+        augustus = config_file_augutus
+    singularity:
+        "shub://FlorianCHA/singularity_containers:braker"
+    message :
+        """
+        Function : 
+            - Execute augustus for {wildcards.smp}.
+        Input : 
+            - Genome file : : {input.genome}
+            - hints file : {input.hints}
+        Ouput : 
+            - gff file : {output.gff_file}
+        """ + "*" *100
+    shell :
+        """
+        augustus --hintsfile={input.hints} --species={params.species} {input.genome} --gff3=on --outfile={output.gff_file} --AUGUSTUS_CONFIG_PATH={params.augustus} 1> {log.output} 2> {log.error}
+        """
+def input_gff(wilcards):
+    """
+    Launch or not braker depending on the presence of RNAseq data
+    """
+    if id_souche == "" :
+        return({'braker' : rules.BRAKER.output.directory})
+    if rna_seq_directory != "" :
+        return({'augustus' : rules.augustus.output.gff_file ,
+                'braker' : rules.BRAKER.output.directory})
+    else :
+        return({'augustus' : rules.augustus.output.gff_file})
+
+
+rule merge_gff:
+    """
+    This rules merge and rename Braker and Augustus output
+    """
+    threads : get_threads('merge_gff', 1)
+    input :
+        unpack(input_gff)
+    output :
+        merge_gff =  f'{output_directory}Annotation/5_merged_gff/{{smp}}_{"Augustus" if rna_seq_directory == "" else "merge"}.gff3'
+    params :
+        species = id_souche,
+        script=f'{dnannot.DNANNOT_SCRIPTS}/mergeBraker_augustus.py',
+        augustus_option = f'{f"--augustus {output_directory}Annotation/4_Augustus/{{smp}}.gff3" if id_souche != "" else "--augustus None"}',
+        species_id = species_ID
+    log :
+        output = f'{log_directory}Annotation/5_merged_gff/{{smp}}.o',
+        error = f'{log_directory}Annotation/5_merged_gff/{{smp}}.e'
+    singularity :
+        "shub://FlorianCHA/singularity_containers:biopython"
+    message :
+        """
+        Function : 
+            - Merge and rename Braker and Augustus output {wildcards.smp}.
+        Input : 
+
+            - braker directory : {input}
+        Ouput : 
+            - gff file : {output.merge_gff}
+        """ + "*" *100
+    shell :
+         """
+        {params.script} {params.augustus_option} --braker {input.braker}/augustus.hints.gff3 -s {params.species_id} -o {output.merge_gff} 1> {log.output} 2> {log.error}
+        """
+
+rule createFasta:
+    """
+    This create fasta file from gff file
+    """
+    threads : get_threads('createFasta', 1)
+    input :
+        gff = rules.merge_gff.output.merge_gff,
+        fasta = rules.hisat2_index.output.new_reference_fasta
+    output :
+        fasta_directory = directory(f'{output_directory}Annotation/6_final_data/{{smp}}/')
+    log :
+        output = f'{log_directory}Annotation/6_final_data/{{smp}}.o',
+        error = f'{log_directory}Annotation/6_final_data/{{smp}}.e'
+    params :
+        script = f'{dnannot.DNANNOT_SCRIPTS}/GFF2fasta.py'
+    singularity :
+        "shub://FlorianCHA/singularity_containers:biopython"
+    message :
+        """
+        Function : 
+            - Create fasta file from gff file of {wildcards.smp}
+        Input : 
+            - gff file : : {input.gff}
+            - fasta file : {input.fasta}
+        Ouput : 
+            - fasta directory  :{output.fasta_directory}
+        """ + "*" *100
+    shell :
+        """
+        {params.script} --gff {input.gff} --fasta {input.fasta} --prefix {output.fasta_directory}/{wildcards.smp} 1> {log.output} 2> {log.error}
+        cp {input.gff} {output.fasta_directory} 1>> {log.output} 2>> {log.error}
+        """
+
+rule busco:
+    """
+    BUSCO v4 assessing genome assembly and annotation completeness
+    """
+    threads : get_threads('busco', 1)
+    input :
+        protein = f'{output_directory}Annotation/6_final_data/{{smp}}/',
+    output :
+        annotation_stat = directory(f'{output_directory}Report/Annotation/BUSCO/{{smp}}/'),
+    params :
+        model = BUSCO_lineage,
+	    output_directory = f'{output_directory}Report/Annotation/BUSCO/',
+        augustus = config_file_augutus
+    log :
+        output = f'{log_directory}BUSCO/{{smp}}.o',
+        error = f'{log_directory}BUSCO/{{smp}}.e'
+    singularity :
+        "shub://FlorianCHA/singularity_containers:busco"
+    message :
+        """
+        Function : 
+            - Use buso for retrieve quality of {wildcards.smp}
+        Input : 
+            - protein file : : {input.protein}
+        Ouput : 
+	        - annotation quality : {output.annotation_stat}	
+        """ + "*" *100
+    shell :
+        """ 
+        export AUGUSTUS_CONFIG_PATH="{params.augustus}"
+        cd {params.output_directory}
+        busco -i {input.protein}{wildcards.smp}_protein.fasta -l {params.model} -f -o {wildcards.smp} -m proteins --offline 1> {log.output} 2> {log.error}
+        """
+
+
+rule recuperation_Stat:
+    """
+    This rule retrieve quality statistics from assembly and annotation
+    """
+    threads : get_threads('recuperation_Stat', 1)
+    input :
+        assembly = f'{output_directory}',
+        outdir =  f'{output_directory}',
+        lien = expand(rules.busco.output.annotation_stat,smp = SAMPLES)
+    output :
+        assembly = f'{output_directory}Report/Annotation/data_report/Assembly_quality.csv',
+        annotation = f'{output_directory}Report/Annotation/data_report/Annotation_stat.csv',
+        rnaseq = f'{output_directory}Report/Annotation/data_report/Report_mapping.txt',
+        busco =  f'{output_directory}Report/Annotation/data_report/Report_busco.txt'
+    params :
+        database = BUSCO_lineage ,
+        prefix = f'{output_directory}Report/Annotation/data_report/Report',
+        script_quality = f'{dnannot.DNANNOT_SCRIPTS}/Quality.py',
+        script_RecupInfo=f'{dnannot.DNANNOT_SCRIPTS}/RecupInfoGFF.py',
+        script_annotation=f'{dnannot.DNANNOT_SCRIPTS}/retrieve_annotation_quality.py'
+
+    log :
+        output = f'{log_directory}Annotation/Report/Quality.o',
+        error = f'{log_directory}Annotation/Report/Quality.e'
+    singularity :
+        "shub://FlorianCHA/singularity_containers:biopython"
+    message :
+        """
+        Function : 
+            - Retrieve quality statistics from assembly and annotation
+        Input : 
+            - assembly directory : : {input.assembly}
+            - annotation directory : {input.outdir}
+        Ouput : 
+            - result file   : 
+                * {output.annotation}
+        """ + "*" *100
+    shell :
+        """
+        {params.script_quality} -d {input.assembly}/Annotation/1_hisat2/0_reference_fasta/ -o {output.assembly}
+        {params.script_RecupInfo} -d {input.outdir}/Annotation/5_merged_gff/ -o {output.annotation} -g {input.assembly}/Annotation/1_hisat2/0_reference_fasta/
+        {params.script_annotation} -a {input.outdir}/Annotation/1_hisat2/1_alignement/ -b {input.outdir}/Report/Annotation/BUSCO/ -db {params.database} -p {params.prefix}
+        """
+
+
+rule report:
+    """
+    This rule generate rapport in html with annotation and assembly quality
+    """
+    threads : get_threads('report', 1)
+    input:
+        assembly = rules.recuperation_Stat.output.assembly,
+        annotation = rules.recuperation_Stat.output.annotation,
+        busco = rules.recuperation_Stat.output.busco,
+        mapping = rules.recuperation_Stat.output.rnaseq
+    output:
+        report = rules.final.input.report_annotation
+    params :
+        script = f'{dnannot.DNANNOT_SCRIPTS}/report.Rmd',
+    log :
+        output = f'{log_directory}Annotation/Report/report.o',
+        error = f'{log_directory}Annotation/Report/report.e'
+    singularity:
+        "shub://FlorianCHA/singularity_containers:rmarkdown"
+    message :
+        """
+        Function : 
+            - Generate rapport in html with annotation and assembly quality of all samples
+        Input : 
+            - assembly quality file : : {input.assembly}
+            - annotation quality file : {input.annotation}
+        Ouput : 
+            - fasta directory  :{output}
+        """ + "*" *100
+    shell :
+        """
+        Rscript -e 'rmarkdown::render("{params.script}", output_file="{output}", quiet=TRUE, params = list(assembly = "{input.assembly}", Annotation = "{input.annotation}", Mapping = "{input.mapping}", busco = "{input.busco}"))'
+        """

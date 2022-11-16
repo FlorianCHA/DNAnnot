@@ -1,0 +1,104 @@
+__default__:
+    n_cpu: "--ntasks=1 --cpus-per-task="
+    threads : 1
+    mem: "--mem-per-cpu=4G"
+    export_env: "--export=ALL"
+    cwd: " "
+    logerror: "-e "
+    log: "-o "
+    queue: " -p long"
+    jobname: "{rulename}.{name}.{jobid}"
+    scheduler: "sbatch"
+
+
+
+
+###### Cluster parameters for ABySS_Launch rules ########
+ABySS_Launch :
+  mem: "--mem-per-cpu=20G"
+
+###### Cluster parameters for recup_stat rules ########
+recup_stat :
+  mem: "--mem-per-cpu=4G"
+
+###### Cluster parameters for summary_stat rules ########
+summary_stat :
+  mem: "--mem-per-cpu=4G"
+
+###### Cluster parameters for repeatMasker rules ########
+repeatMasker :
+  mem: "--mem-per-cpu=5G"
+  threads : 4
+
+###### Cluster parameters for renameFile rules ########
+renameFile :
+  mem: "--mem-per-cpu=4G"
+
+###### Cluster parameters for hisat2_index rules ########
+hisat2_index :
+  mem: "--mem-per-cpu=4G"
+
+###### Cluster parameters for hisats2_alignement rules ########
+hisat2_alignement:
+  mem: "--mem-per-cpu=10G"
+  queue:  "-p long"
+
+###### Cluster parameters for samtools rules ########
+samtools :
+  mem: "--mem-per-cpu=10G"
+
+ ###### Cluster parameters for merge_bam rules ########
+merge_bam :
+  mem: "--mem-per-cpu=10G"
+
+###### Cluster parameters for sort_bam rules ########
+sort_bam :
+   mem: "--mem-per-cpu=20G"
+
+###### Cluster parameters for bam2hints rules ########
+bam2hints :
+  mem: "--mem-per-cpu=4G"
+
+###### Cluster parameters for bam2hints_filter rules ########
+bam2hints_filter :
+  mem: "--mem-per-cpu=4G"
+
+###### Cluster parameters for exonerate rules ########
+exonerate :
+   mem: "--mem-per-cpu=20G"
+   threads : 2
+
+###### Cluster parameters for merge_hint rules ########
+merge_hint:
+  mem: "--mem-per-cpu=4G"
+
+###### Cluster parameters for BRAKER rules ########
+BRAKER :
+   mem: "--mem-per-cpu=10G"
+   threads : 2
+
+###### Cluster parameters for augustus rules ########
+augustus :
+  mem: "--mem-per-cpu=4G"
+  threads : 2
+###### Cluster parameters for merge_gff rules ########
+merge_gff :
+  mem: "--mem-per-cpu=4G"
+
+###### Cluster parameters for createFasta rules ########
+createFasta:
+  mem: "--mem-per-cpu=4G"
+  queue: "-p fast"
+
+###### Cluster parameters for busco rules ########
+busco:
+  mem: "--mem-per-cpu=4G"
+
+###### Cluster parameters for recuperation_Stat rules ########
+recuperation_Stat:
+  mem: "--mem-per-cpu=4G"
+
+###### Cluster parameters for report rules ########
+report:
+  mem: "--mem-per-cpu=4G"
+  queue: "-p fast"

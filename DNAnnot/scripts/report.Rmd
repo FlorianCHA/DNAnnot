@@ -1,0 +1,173 @@
+---
+title: "Rapport of Annotation pipeline"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+author : 'Florian CHARRIAT'
+params:
+   assembly: "Assembly_quality.csv"
+   Annotation: "Annotation_stat.csv"
+   Mapping : "Report_mapping.txt"
+   busco : "Report_busco.txt"
+output:
+  html_document:
+    fig_caption: yes
+    highlight: zenburn
+    theme: cerulean
+    toc: yes
+    toc_depth: 5
+    toc_float: yes
+---
+
+
+```{r knitr setup, include=FALSE,  eval=TRUE, echo=FALSE, warning=FALSE}
+# knitr::opts_chunk$set(echo=TRUE, eval=TRUE, cache=TRUE, message=FALSE, warning=FALSE, comment="")
+#  rmdformats::readthedown:
+
+library(knitr)
+options(width=300)
+knitr::opts_chunk$set(
+  fig.width = 10, 
+  fig.height = 5, 
+  fig.align = "center", 
+  size = "tiny", 
+  echo = TRUE, eval=TRUE, 
+  warning = FALSE, message = FALSE, 
+  results = TRUE, comment = "")
+# knitr::asis_output("\\footnotesize")
+
+```
+
+
+```{r Package , echo=FALSE}
+if(!require("knitr"))
+  {
+  install.packages('knitr')
+}
+if(!require("DT"))
+  {
+  install.packages('DT')
+  }
+library('knitr')
+if(!require("ggplot2"))
+  {
+  install.packages('ggplot2')
+  }
+library('knitr')
+library('DT')
+library('ggplot2')
+```
+
+```{r Importation des données, echo=FALSE}
+file.quality <- params$assembly
+dataQ <- read.table(file=file.quality, sep="\t", header=TRUE)
+rownames(dataQ) <- dataQ$name
+datatableQ <- dataQ[,1:10]
+```
+
+
+#Assembly
+
+## Quality statistics
+
+### Definition
+
+Name  | definition
+------| -----------------------------------------------------------------------------------------------------------
+N50 | Taille du scaffold à partir du quel tous les scaffolds de taille supérieure ou égale couvrent 50 % du génome
+L50 | Nombre minimum de scaffold qui permet de couvrir 50% du génome
+n:500 | Nombre de scaffold total de l'assemblage de longueur supérieur à 500 nucléotides
+max | Taille maximale d'un scaffold dans l'assemblage
+
+----------
+
+### Table
+
+
+```{R Visualisation des données brut, echo=FALSE}
+
+# MAYBE a summary of all statitics (definition)
+
+datatable(datatableQ, caption =" Table n°1: Quality statistics of all assemblies",colnames = c('Id', colnames(datatableQ)),extensions = 'Buttons', options = list(dom = 'Blfrtip',buttons = c('copy', 'csv', 'excel', 'pdf', 'print'))) 
+```
+
+&nbsp;
+
+----------
+
+&nbsp;
+
+#Annotation
+
+
+## RNA mapping
+
+
+```{R RNAseq, echo=FALSE}
+dataA <- read.table(params$Mapping, header = T, sep  = '\t')
+rownames(dataA) <- dataA$X
+datatableA <- dataA[,2:ncol(dataA)]
+datatableA <- data.frame(t(apply(datatableA,1, function(x) x/100)))
+
+#Put number in percent
+datatable(datatableA, caption =" Table n°2: Summary of all mapping RNAseq for BRAKER & Augustus tools",colnames = c('Id', colnames(datatableA)),extensions = 'Buttons', options = list(dom = 'Blfrtip',buttons = c('copy', 'csv', 'excel', 'pdf', 'print'))) %>% formatPercentage(colnames(datatableA),2)%>% formatStyle(names(datatableA),
+  background = styleColorBar(range(datatableA), 'lightgreen'),
+  backgroundSize = '98% 88%',
+  backgroundRepeat = 'no-repeat',
+  backgroundPosition = 'center')
+```
+
+----------
+
+
+## Busco Quality
+
+
+```{R Busco, echo=FALSE}
+dataB <- read.table(params$busco, header = T, sep  = '\t')
+rownames(dataB ) <- dataB$X
+datatableB <- dataB[,2:ncol(dataB)]
+columns.order <- c('complete','SCO','MCO','Frag','missing','number')
+datatable.DT <- datatableB[,columns.order]
+datatable.DT <- data.frame(t(rbind(apply(datatable.DT[0:(length(datatable.DT)-1)],1, function(x) x/100),datatable.DT$number)))
+datatable(datatable.DT, caption =" Table n°3: Busco quality statistics for all annotations",colnames = c('Id','Complete gene','Single copy gene','Multiple copy gene','Fragment gene','Missing gene','Number gene used'),extensions = 'Buttons', options = list(dom = 'Blfrtip',buttons = c('copy', 'csv', 'excel', 'pdf', 'print'))) %>% 
+            formatPercentage(colnames(datatable.DT)[0:(length(colnames(datatable.DT))-1)],2)%>% formatStyle(names(datatable.DT[,0:(length(colnames(datatable.DT))-1)]),
+  background = styleColorBar(range(datatable.DT[,0:(length(colnames(datatable.DT))-1)]), 'lightgreen'),
+  backgroundSize = '98% 88%',
+  backgroundRepeat = 'no-repeat',
+  backgroundPosition = 'center')
+```
+
+----------
+
+## Annoted gene
+
+```{R Gene, echo=FALSE}
+dataA <- read.table(params$Annotation, header = T, sep  = '\t')
+rownames(dataA) <- dataA$Strain
+datatableA <- dataA[,2:ncol(dataA)]
+
+datatable(datatableA, caption =" Table n°4 : Origin of annotated gene" ,colnames = c('Id', 'Augustus','Braker','number of gene','Lengh mean (pb)','Length of assembly (mb)'),extensions = 'Buttons', options = list(dom = 'Blfrtip',buttons = c('copy', 'csv', 'excel', 'pdf', 'print'))) 
+```
+
+----------
+
+
+## Mean annotation tools 
+
+&nbsp;
+
+
+```{r proportion Braker/augusuts, echo=FALSE}
+augustus <- mean(dataA$Augustus)
+braker <- mean(dataA$Braker)
+total <- augustus+braker
+label1 <- paste('Protein predict by Braker (',round(braker/total*100,1),'%)')
+label2 <- paste('Protein predict by Augustus (',round(augustus/total*100,1), '%)')
+
+
+pie(c(braker,augustus),col=c("steelblue","forestgreen"),density = 60,label = c(label1, label2), main ='Origin of protein annoted by Annotation_pipeline')
+
+```
+
+
+
+
