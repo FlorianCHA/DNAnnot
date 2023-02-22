@@ -7,7 +7,7 @@ args = str(sys.argv)
 if "sphinx" in args:
     DNANNOT_PATH = Path("/Path/to/DNANNOT_install/")
 else:
-    DNANNOT_PATH = Path(__file__).resolve().parent
+    DNANNOT_PATH = Path(__file__).resolve().parent.parent
 
 DNANNOT_SNAKEFILE = DNANNOT_PATH.joinpath("Snakefile")
 DNANNOT_MODE = DNANNOT_PATH.joinpath(".mode.txt")

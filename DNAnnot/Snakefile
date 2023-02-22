@@ -56,6 +56,9 @@ output_directory = make_output_directory(output_directory)
 
 #Braker tools
 braker_container = f'{DNANNOT_PATH}/tools/singularity_containers_braker.sif'
+if not Path(braker_container).is_file():
+    os.system(f'singularity pull shub://FlorianCHA/singularity_containers:braker --dir {DNANNOT_PATH}/tools/')
+
 
 if protein_reference == '' and rna_seq_directory == '':
       raise ValueError(form(
