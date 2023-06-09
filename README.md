@@ -9,7 +9,7 @@ This pipeline is an automatic structural annotation workflows written in snakema
 For install the annotation Workflows, please use this command :
 
 ```
-git clone https://github.com/FlorianCHA/AssemblyAndAnnotation_pipeline.git
+git clone https://github.com/FlorianCHA/DNAnnot.git
 ```
 
 This workflows use many tools for assembly, mapping, annotation and quality control. For installation of softwre two
@@ -31,12 +31,8 @@ If you want download all software, please complete the software part of config.y
  * **[R](https://cran.r-project.org/bin/linux/ubuntu/README.html>) & [Rmarckdown package](https://rmarkdown.rstudio.com/lesson-1.html>)**
  * **[Python >=3.7](https://www.python.org/downloads/)**
  * **[Snakemake >= 5.2](https://snakemake.readthedocs.io/en/stable/)**
- 
-### Optional installation 
+ * **[RepeatMasker](http://www.repeatmasker.org/RMDownload.html) if you want mask the repeat element of your genomes**
 
- * [RepeatMasker](http://www.repeatmasker.org/RMDownload.html) if you want mask the repeat element of your genomes
- * [ABySS](https://bioinformaticshome.com/tools/wga/descriptions/ABySS.html#Download_and_documentation) if you want assembled you illumina fastq 
- 
 ## Sigularity containers
 
 All containers for the workflows are available **[here](https://singularity-hub.org/collections/4091)**. If you use the
@@ -51,20 +47,6 @@ To run the workflows you have to provide the data path for all input file. Pleas
  
 ### 1. Providing data
 
-#### Assembly option 
-
-```
-    # If you want assembly with ABySS you illumina data please complete this part else, pass this part (keep every path empty '')
-    FASTQ: '/path/to/fastq/directory/' 
-    SUFFIX_FASTQ_R1 : '_R1.fastq.gz' 
-    SUFFIX_FASTQ_R2 : '_R1.fastq.gz' 
-```
-
-* **FASTQ** : Path of you directory which contain all your fastq file to assemble, if you let empty the path the
- workflown don't assembled and use fasta file (give in the **FASTA** option) for the annotation step.
-* **SUFFIX_FASTQ_R1** :  Etension of your R1 fastq files contains in FASTQ directory (for exemple : '_R1.fastq.gz' )
-* **SUFFIX_FASTQ_R2** : Etension of your R2 fastq files contains in FASTQ directory (for exemple : '_R2.fastq.gz' )
-    
 #### Repeat element masking option 
 
 ```

@@ -1,25 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from .parser.run import run_cluster, run_local
-# from .edit_files import edit_tools, create_config, create_cluster_config
-from .parser.install import install_cluster, install_local, test_install
-from .parser.usefull_function import get_version, get_last_version
-from .parser.global_variables import *
+from DNAnnot.global_variables import *
+from pathlib import Path
+from .global_variables import GIT_URL, DOCS, DATATEST_URL_FILES, SINGULARITY_URL_FILES
 
-NAME = "DNAnnot"
-logo = DNANNOT_PATH.joinpath('dnannot_logo.png').as_posix()
+logo = Path(__file__).parent.resolve().joinpath('DNAnnot_logo.png').as_posix()
 
-__version__ = get_version()
+__version__ = Path(__file__).parent.resolve().joinpath("VERSION").open("r").readline().strip()
+
 
 __doc__ = """BLABLA"""
 
-description_tools = """
-    Welcome to DNAnnot version: """+__version__+""" ! Created on November 2019
-    @author: Florian Charriat (INRAE), Sebastien Ravel (CIRAD), ,
-    @email: florian.charriat@cirad.fr
+description_tools = f"""
+    Welcome to DNAnnot version: {__version__} ! Created on November 2019
+    @author: Florian Charriat (INRAE), Sebastien Ravel (CIRAD)
+    @email: florian.charriat@cirad.fr, Sebastien.ravel@cirad.fr
 
-    Please cite our github """+DOCS+"""
-    Licencied under CeCill-C (http://www.cecill.info/licences/Licence_CeCILL-C_V1-en.html)
-    and GPLv3 Intellectual property belongs to INRAE, CIRAD and authors.
-    Documentation avail at: """+DOCS+"""
-    """+get_last_version(url=DOCS, current_version=__version__)
+    Please cite our github: GIT_URL
+    and GPLv3 Intellectual property belongs to CIRAD and authors.
+    Documentation avail at: DOCS"""
+
+dico_tool = {
+    "soft_path": Path(__file__).resolve().parent.as_posix(),
+    "url": GIT_URL,
+    "docs": DOCS,
+    "description_tool": description_tools,
+    "singularity_url_files": SINGULARITY_URL_FILES,
+    "datatest_url_files": DATATEST_URL_FILES
+}

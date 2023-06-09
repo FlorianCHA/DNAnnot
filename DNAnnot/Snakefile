@@ -1,23 +1,29 @@
-import glob
-import re
-import sys
-from os.path import join
-import DNAnnot
-from DNAnnot.global_variable import *
-from .parser.module_config import *
+#!/usr/bin/env snakemake
+# -*- coding: utf-8 -*-
+
 from pathlib import Path
+from pprint import pprint as pp
+# load own functions
+import DNAnnot
+import os
 
+DNAnnot_obj = DNAnnot(DNAnnot.dico_tool, workflow=workflow, config=config)
+tools_config = DNAnnot_obj.tools_config
+cluster_config = DNAnnot_obj.cluster_config
+
+# print(DNAnnot_obj.export_use_yaml)
+# print for debug:
+# pp(DNAnnot_obj)
+# exit()
+# print(tools_config)
+# exit()
 
 ###############################################################################
-###############################################################################
-# Adapt here so you can get all read pairs and ref:
-#--------------------------------------------------
-
-
 # Fasta directory
 data_directory = config["DATA"]["FASTA"]
 suffix_fasta = config["DATA"]["SUFFIX_FASTA"]# for the golb_wildcards function
-data_directory = verif_directory(data_directory,suffix_fasta)
+#data_directory = verif_directory(data_directory,suffix_fasta)
+
 
 # RNAseq directory
 rna_seq_directory = config["DATA"]["RNAseq_DIR"]
@@ -25,11 +31,11 @@ suffix_RNAseq = config["DATA"]["SUFFIX_RNAseq"]
 
 
 # Augustus Parameters
-config_file_augutus = f'{DNANNOT_PATH}/Additional_files/config_augustus/'
+config_file_augutus = f'{DNAnnot_obj.install_path}/Additional_files/config_augustus/'
 #config_file_augutus = f'/shared/home/fcharriat/magmax/Test_pipeline_Annotation/data_test/config_augustus/' # For test
 
 id_souche = config["DATA"]["ID_SPECIES"]
-verif_species(id_souche,config_file_augutus,rna_seq_directory)
+#verif_species(id_souche,config_file_augutus,rna_seq_directory)
 
 #Licence of genemark-ES
 gm_keys = config["DATA"]["GM_KEY"]
@@ -38,7 +44,6 @@ os.system(f'cp {gm_keys} ~/.gm_key')
 
 # Path to protein annotation file
 protein_reference = config["DATA"]["PROTEIN_REF"]
-verif_fasta_file(protein_reference)
 
 # Repeat element data base
 ET_option =  config["DATA"]["REPEAT_MASKING_STEP"]
@@ -52,30 +57,43 @@ BUSCO_lineage = config["DATA"]["BUSCO_LINEAGE"]
 
 # Out directory
 output_directory = config["DATA"]["OUTPUT"]
-output_directory = make_output_directory(output_directory)
+
 
 #Braker tools
-braker_container = f'{DNANNOT_PATH}/tools/singularity_containers_braker.sif'
+
+braker_container = f'{DNAnnot_obj.install_path}/tools/singularity_containers_braker.sif'
 if not Path(braker_container).is_file():
-    os.system(f'singularity pull shub://FlorianCHA/singularity_containers:braker --dir {DNANNOT_PATH}/tools/')
+    os.system(f'singularity pull shub://FlorianCHA/singularity_containers:braker --dir {DNAnnot_obj.install_path}/tools/')
 
 
 if protein_reference == '' and rna_seq_directory == '':
-      raise ValueError(form(
-            f"ERROR : You don't provide a protein file and rnaseq file please provide a least one of them", 'red', 'bold'))
+      raise ValueError(
+            f"ERROR : You don't provide a protein file and rnaseq file please provide a least one of them", 'red', 'bold')
 ################################################################################
-################################################################################
-# Function
-################################################################################
+log_directory = f"{output_directory}LOGS/"
+# Change workdir to output path (slurm logs append on outdir)
+workdir: output_directory
+
+#############################################
+# use threads define in cluster_config rule or rule default or default in snakefile
+#############################################
 def get_threads(rule, default):
     """
-    Give threads or 'cpus-per-task from cluster_config rule : threads to SGE and cpus-per-task to SLURM
+    give threads or 'cpus-per-task from cluster_config rule: threads to SGE and cpus-per-task to SLURM
     """
-
-    if rule in cluster_config and 'threads' in cluster_config[rule]:
-        return int(cluster_config[rule]['threads'])
-    elif '__default__' in cluster_config and 'threads' in cluster_config['__default__']:
-        return int(cluster_config['__default__']['threads'])
+    if cluster_config:
+        if rule in cluster_config and 'threads' in cluster_config[rule]:
+            return int(cluster_config[rule]['threads'])
+        elif rule in cluster_config and 'cpus-per-task' in cluster_config[rule]:
+            return int(cluster_config[rule]['cpus-per-task'])
+        elif '__default__' in cluster_config and 'cpus-per-task' in cluster_config['__default__']:
+            return int(cluster_config['__default__']['cpus-per-task'])
+        elif '__default__' in cluster_config and 'threads' in cluster_config['__default__']:
+            return int(cluster_config['__default__']['threads'])
+    # if local
+    elif workflow.global_resources["_cores"]:
+        return workflow.global_resources["_cores"]
+    # if cluster not rule and not default or local not _cores return value from call
     return default
 
 
@@ -85,31 +103,17 @@ def get_threads(rule, default):
 # TODO {suffix} RNAseq + Mettre en single et/ou paired + report quality of RNAseq
 # TODO Verif repeatMasker option ? 
 
-#################################################################################
-### Create Logs directory
-log_directory = output_directory + 'LOGS/'
-liste_log = [f'{log_directory}Assembly/ABySS',f'{log_directory}Assembly/Report',f'{log_directory}Assembly/2_assembly_selected',
-             f'{log_directory}Assembly/3_masked',f'{log_directory}Assembly/4_assembly_final',f'{log_directory}Annotation/1_hisat2/0_reference_fasta',
-             f'{log_directory}Annotation/1_hisat2/1_alignement/alignement',f'{log_directory}Annotation/1_hisat2/1_alignement/sort',
-             f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/aln', f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/sort',
-             f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/hints',f'{log_directory}Annotation/2_hints/RNAseq_hints',
-             f'{log_directory}Annotation/2_hints/ProtHints',f'{log_directory}Annotation/2_hints/MergeHints', f'{log_directory}Annotation/3_Braker',
-             f'{log_directory}Annotation/4_Augustus',f'{log_directory}Annotation/5_merged_gff',f'{log_directory}Annotation/6_final_data',
-             f'{log_directory}Annotation/Report',f'{log_directory}BUSCO']
 
-for directory_log in liste_log :
-    if  os.path.isdir(directory_log) == False :
-        os.makedirs(directory_log)
 
 ######### Main code of Workflow #################################################
 SAMPLES, = glob_wildcards(f'{data_directory}{{smp}}{suffix_fasta}', followlinks=True)
 RNA, = glob_wildcards(f'{rna_seq_directory}{{rna}}{suffix_RNAseq}', followlinks=True) # Warning, they haven't suffix variable for retrieve all RNAseq but they can retrieve  a file which aren't a RNAseq file
-kmere = [20,30,40,50,60,70,80,90]
 
 rule final:
     input:
         final_data = expand(f'{output_directory}Annotation/6_final_data/{{smp}}/', smp = SAMPLES),
         report_annotation = f'{output_directory}Report/Annotation/report.html'
+
 
 rule repeatMasker:
     """
