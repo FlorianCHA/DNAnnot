@@ -5,6 +5,7 @@ from pathlib import Path
 from pprint import pprint as pp
 # load own functions
 import DNAnnot
+from DNAnnot import Dnannot
 import os
 
 DNAnnot_obj = Dnannot(DNAnnot.dico_tool, workflow=workflow, config=config)
