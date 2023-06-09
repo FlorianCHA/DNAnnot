@@ -19,9 +19,9 @@ description = "TODO !!!!!"
 authors = [
     {name = "Charriat Florian",email = "florian.charriat@cirad.fr"},
 ]
-dependencies = ["PyYAML", "click>=8.0.3", "cookiecutter", "docutils", "python-gitlab", "snakemake", "tqdm"]
+dependencies = ["snakecdysis", "PyYAML", "click>=8.0.3", "cookiecutter", "docutils", "python-gitlab", "snakemake", "tqdm"]
 requires-python = ">=3.8"
-readme = "README.rst"
+readme = "README.md"
 license = {file = "LICENSE"}
 keywords = ["snakemake", "wrapper", "installation"]
 classifiers = [

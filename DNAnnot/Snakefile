@@ -7,7 +7,7 @@ from pprint import pprint as pp
 import DNAnnot
 import os
 
-DNAnnot_obj = DNAnnot(DNAnnot.dico_tool, workflow=workflow, config=config)
+DNAnnot_obj = Dnannot(DNAnnot.dico_tool, workflow=workflow, config=config)
 tools_config = DNAnnot_obj.tools_config
 cluster_config = DNAnnot_obj.cluster_config
 

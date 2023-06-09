@@ -9,7 +9,7 @@ from .global_variables import *
 from snakecdysis import *
 
 
-class DNAnnot(SnakEcdysis):
+class Dnannot(SnakEcdysis):
     """
     to read file config
     """
