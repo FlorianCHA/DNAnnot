@@ -26,5 +26,7 @@ dico_tool = {
     "docs": DOCS,
     "description_tool": description_tools,
     "singularity_url_files": SINGULARITY_URL_FILES,
-    "datatest_url_files": DATATEST_URL_FILES
+    "datatest_url_files": DATATEST_URL_FILES,
+    "snakefile": Path(__file__).resolve().parent.joinpath("Snakefile"),  
+    "snakemake_scripts": Path(__file__).resolve().parent.joinpath("scripts")
 }
