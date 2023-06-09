@@ -62,9 +62,9 @@ output_directory = config["DATA"]["OUTPUT"]
 
 #Braker tools
 
-# braker_container = f'{DNAnnot_obj.install_path}/tools/singularity_containers_braker.sif'
-# if not Path(braker_container).is_file():
-#     os.system(f'singularity pull shub://FlorianCHA/singularity_containers:braker --dir {DNAnnot_obj.install_path}/tools/')
+braker_container = f'{DNAnnot_obj.install_path}/tools/singularity_containers_braker.sif'
+if not Path(braker_container).is_file():
+    os.system(f'singularity pull shub://FlorianCHA/singularity_containers:braker --dir {DNAnnot_obj.install_path}/tools/')
 
 
 if protein_reference == '' and rna_seq_directory == '':
@@ -198,8 +198,8 @@ rule hisat2_index :
     log :
         output = f'{log_directory}Annotation/1_hisat2/0_reference_fasta/{{smp}}.o',
         error = f'{log_directory}Annotation/1_hisat2/0_reference_fasta/{{smp}}.e'
-    singularity:
-        "shub://FlorianCHA/singularity_containers:hisat2"
+    # singularity:
+    #     "shub://FlorianCHA/singularity_containers:hisat2"
     envmodules:
         "hisat2/2.1.0"
     message :
@@ -234,8 +234,8 @@ rule hisat2_alignement :
     log :
         output = f'{log_directory}Annotation/1_hisat2/1_alignement/alignement/{{smp}}_{{rna}}.o',
         error = f'{log_directory}Annotation/1_hisat2/1_alignement/alignement/{{smp}}_{{rna}}.e'
-    singularity:
-        "shub://FlorianCHA/singularity_containers:hisat2"
+    # singularity:
+    #     "shub://FlorianCHA/singularity_containers:hisat2"
     envmodules:
         "hisat2/2.1.0 samtools/1.10"
     message :
@@ -266,8 +266,8 @@ rule samtools :
     log :
         output = f'{log_directory}Annotation/1_hisat2/1_alignement/sort/{{smp}}_{{rna}}.o',
         error = f'{log_directory}Annotation/1_hisat2/1_alignement/sort/{{smp}}_{{rna}}.e'
-    singularity:
-        "shub://FlorianCHA/singularity_containers:hisat2"
+    # singularity:
+    #     "shub://FlorianCHA/singularity_containers:hisat2"
     envmodules:
         "samtools/1.10"
     message :
@@ -298,8 +298,8 @@ rule merge_bam :
     log :
         output = f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/aln/{{smp}}.o',
         error = f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/aln/{{smp}}.e'
-    singularity:
-        "shub://FlorianCHA/singularity_containers:hisat2"
+    # singularity:
+    #     "shub://FlorianCHA/singularity_containers:hisat2"
     envmodules:
         "samtools/1.10"
     message :
@@ -330,8 +330,8 @@ rule sort_bam :
     log :
         output = f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/sort/{{smp}}.o',
         error = f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/sort/{{smp}}.e'
-    singularity:
-        "shub://FlorianCHA/singularity_containers:hisat2"
+    # singularity:
+    #     "shub://FlorianCHA/singularity_containers:hisat2"
     envmodules:
         "samtools/1.10"
     message :
@@ -362,8 +362,8 @@ rule bam2hints :
         error = f'{log_directory}Annotation/1_hisat2/2_merge_bam_file/hints/{{smp}}.e'
     singularity:
         "shub://FlorianCHA/singularity_containers:braker"
-    envmodules:
-        "braker"
+    # envmodules:
+    #     "braker"
     message :
         """
         Function : 
@@ -423,8 +423,8 @@ rule exonerate :
         error = f'{log_directory}Annotation/2_hints/ProtHints/{{smp}}.e'
     singularity:
         "shub://FlorianCHA/singularity_containers:braker"
-    envmodules:
-        "braker"
+    # envmodules:
+    #     "braker"
     message :
         """
         Function : 
