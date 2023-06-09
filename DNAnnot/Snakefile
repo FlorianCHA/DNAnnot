@@ -389,7 +389,7 @@ rule bam2hints_filter :
         hints_filtred = f'{output_directory}Annotation/2_hints/RNAseq_hints/hints_{{smp}}.filtered.gff'
     params :
         path = f"{output_directory}Annotation/1_hisat2/2_merge_bam_file/{{smp}}/",
-        script=f'{dnannot.DNANNOT_SCRIPTS}/filterHintsSnake.r'
+        script=f'{DNAnnot_obj.snakemake_scripts}/filterHintsSnake.r'
     log :
         output = f'{log_directory}Annotation/2_hints/RNAseq_hints/{{smp}}.o',
         error = f'{log_directory}Annotation/2_hints/RNAseq_hints/{{smp}}.e'
@@ -598,7 +598,7 @@ rule merge_gff:
         merge_gff =  f'{output_directory}Annotation/5_merged_gff/{{smp}}_{"Augustus" if rna_seq_directory == "" else "merge"}.gff3'
     params :
         species = id_souche,
-        script=f'{dnannot.DNANNOT_SCRIPTS}/mergeBraker_augustus.py',
+        script=f'{DNAnnot_obj.snakemake_scripts}/mergeBraker_augustus.py',
         augustus_option = f'{f"--augustus {output_directory}Annotation/4_Augustus/{{smp}}.gff3" if id_souche != "" else "--augustus None"}',
         species_id = species_ID
     log :
@@ -635,7 +635,7 @@ rule createFasta:
         output = f'{log_directory}Annotation/6_final_data/{{smp}}.o',
         error = f'{log_directory}Annotation/6_final_data/{{smp}}.e'
     params :
-        script = f'{dnannot.DNANNOT_SCRIPTS}/GFF2fasta.py'
+        script = f'{DNAnnot_obj.snakemake_scripts}/GFF2fasta.py'
     singularity :
         "shub://FlorianCHA/singularity_containers:biopython"
     message :
@@ -706,9 +706,9 @@ rule recuperation_Stat:
     params :
         database = BUSCO_lineage ,
         prefix = f'{output_directory}Report/Annotation/data_report/Report',
-        script_quality = f'{dnannot.DNANNOT_SCRIPTS}/Quality.py',
-        script_RecupInfo=f'{dnannot.DNANNOT_SCRIPTS}/RecupInfoGFF.py',
-        script_annotation=f'{dnannot.DNANNOT_SCRIPTS}/retrieve_annotation_quality.py'
+        script_quality = f'{DNAnnot_obj.snakemake_scripts}/Quality.py',
+        script_RecupInfo=f'{DNAnnot_obj.snakemake_scripts}/RecupInfoGFF.py',
+        script_annotation=f'{DNAnnot_obj.snakemake_scripts}/retrieve_annotation_quality.py'
 
     log :
         output = f'{log_directory}Annotation/Report/Quality.o',
@@ -747,7 +747,7 @@ rule report:
     output:
         report = rules.final.input.report_annotation
     params :
-        script = f'{dnannot.DNANNOT_SCRIPTS}/report.Rmd',
+        script = f'{DNAnnot_obj.snakemake_scripts}/report.Rmd',
     log :
         output = f'{log_directory}Annotation/Report/report.o',
         error = f'{log_directory}Annotation/Report/report.e'
