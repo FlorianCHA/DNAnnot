@@ -62,9 +62,9 @@ output_directory = config["DATA"]["OUTPUT"]
 
 #Braker tools
 
-braker_container = f'{DNAnnot_obj.install_path}/tools/singularity_containers_braker.sif'
-if not Path(braker_container).is_file():
-    os.system(f'singularity pull shub://FlorianCHA/singularity_containers:braker --dir {DNAnnot_obj.install_path}/tools/')
+# braker_container = f'{DNAnnot_obj.install_path}/tools/singularity_containers_braker.sif'
+# if not Path(braker_container).is_file():
+#     os.system(f'singularity pull shub://FlorianCHA/singularity_containers:braker --dir {DNAnnot_obj.install_path}/tools/')
 
 
 if protein_reference == '' and rna_seq_directory == '':
