@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from DNAnnot.global_variables import *
 from pathlib import Path
+from .module import Dnannot
 from .global_variables import GIT_URL, DOCS, DATATEST_URL_FILES, SINGULARITY_URL_FILES
 
 logo = Path(__file__).parent.resolve().joinpath('DNAnnot_logo.png').as_posix()
