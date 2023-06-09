@@ -25,8 +25,8 @@ def main():
         Sebastien Ravel (CIRAD)""",
         author_email="florian.charriat@cirad.fr",
         #description=culebrONT.__doc__,
-        long_description=CURRENT_PATH.joinpath('README.rst').open("r", encoding='utf-8').read(),
-        long_description_content_type='text/x-rst',
+        long_description=CURRENT_PATH.joinpath('README.md').open("r", encoding='utf-8').read(),
+        long_description_content_type='text/md',
         license='GPLv3',
         # docs compilation utils
         command_options={
